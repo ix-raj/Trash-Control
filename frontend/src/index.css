@@ -1,0 +1,52 @@
+@import "tailwindcss";
+
+@theme {
+  --color-dark-bg: #f4f6f1;
+  --color-dark-card: #ffffff;
+  --color-dark-border: #dbe4d8;
+  --color-neon-blue: #227c70;
+  --color-neon-teal: #4d9b68;
+  --color-neon-pink: #c75c3b;
+  --color-neon-purple: #6e7d4f;
+  --shadow-neon-blue: 0 8px 24px rgba(29, 83, 68, 0.1);
+  --shadow-neon-glow: 0 10px 26px rgba(34, 124, 112, 0.18);
+}
+
+@utility glass { background: rgba(255,255,255,.92); border: 1px solid #dbe4d8; box-shadow: 0 8px 24px rgba(29,83,68,.07); }
+@utility neon-border { border-color: #227c70; box-shadow: 0 8px 24px rgba(34,124,112,.12); }
+@utility neon-border-hover { &:hover { border-color: #227c70; box-shadow: 0 10px 26px rgba(34,124,112,.14); } }
+@utility neon-text-blue { text-shadow: none; }
+@utility neon-text-pink { text-shadow: none; }
+
+:root { font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; color: #24332d; background: #f4f6f1; }
+* { box-sizing: border-box; }
+body { @apply bg-dark-bg text-gray-800 antialiased overflow-x-hidden; margin: 0; background-image: radial-gradient(circle at 8% 0%, rgba(117,161,105,.12), transparent 28rem), linear-gradient(180deg,#f7f9f5 0%,#f1f4ee 100%); }
+button, a, input, select, textarea { -webkit-tap-highlight-color: transparent; }
+button, a { transition: color .2s ease, background-color .2s ease, border-color .2s ease, box-shadow .2s ease, transform .2s ease; }
+button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-visible { outline: 3px solid rgba(34,124,112,.28); outline-offset: 2px; }
+::selection { background: #b8d8bd; color: #173d32; }
+::-webkit-scrollbar { width: 9px; }
+::-webkit-scrollbar-track { background: #edf2eb; }
+::-webkit-scrollbar-thumb { background: #aec6b0; border-radius: 8px; }
+input, select, textarea { color-scheme: light; }
+.leaflet-container { width: 100%; height: 100%; border-radius: .85rem; background: #dce8df !important; }
+.leaflet-popup-content-wrapper { background: #fff !important; color: #24332d !important; border: 1px solid #dbe4d8 !important; box-shadow: 0 10px 28px rgba(25,64,48,.16) !important; }
+.leaflet-popup-tip { background: #fff !important; }
+.leaflet-control-zoom a { color: #227c70 !important; }
+@media (max-width: 640px) { .leaflet-container { border-radius: .65rem; } }
+
+/* Shared light-surface refinements for the remaining application pages. */
+main .text-white { color: #173d32 !important; }
+main .text-gray-200 { color: #35594c !important; }
+main .text-gray-300 { color: #526b5d !important; }
+main .text-gray-400 { color: #647b6e !important; }
+main .text-gray-500 { color: #71887a !important; }
+main .bg-dark-card { background-color: #ffffff !important; }
+main .bg-dark-bg { background-color: #f8faf7 !important; }
+main .glass { border-radius: .9rem; }
+main input, main select, main textarea { border-color: #d4e1d4; background-color: #f8faf7; color: #24483b; }
+main input::placeholder, main textarea::placeholder { color: #8aa092; }
+main input:focus, main select:focus, main textarea:focus { border-color: #227c70; box-shadow: 0 0 0 3px rgba(34,124,112,.12); }
+main table th { color: #71887a; font-weight: 700; }
+main table td { border-color: #e4ece2; }
+main button:not(:disabled):hover { transform: translateY(-1px); }

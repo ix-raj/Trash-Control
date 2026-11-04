@@ -1,0 +1,6 @@
+import React from 'react';
+import { Link } from 'react-router-dom';
+import { Leaf, Sprout } from 'lucide-react';
+
+const Footer = () => <footer className="relative mt-20 w-full overflow-hidden border-t border-[#dbe4d8] bg-[#edf2eb] py-10"><div className="pointer-events-none absolute -bottom-9 left-[8%] text-[#c9dfca]/70"><Leaf className="h-28 w-28 -rotate-12" /></div><div className="pointer-events-none absolute -right-3 bottom-0 text-[#c1d9c2]/70"><Sprout className="h-32 w-32 rotate-12" /></div><div className="relative z-10 mx-auto flex w-full max-w-[1600px] flex-col gap-6 px-5 sm:px-8 lg:px-10 md:flex-row md:items-center md:justify-between"><div><div className="flex items-center gap-2 text-sm font-extrabold tracking-[.16em] text-[#173d32]"><Leaf className="h-4 w-4 text-[#4d9b68]" />TRASH CONTROL</div><p className="mt-2 text-xs text-[#6b8475]">Clean cities. Smarter operations. Better communities.</p></div><div className="flex gap-5 text-xs font-semibold text-[#587065]"><Link to="/privacy" className="hover:text-[#1f6e5f]">Privacy</Link><Link to="/terms" className="hover:text-[#1f6e5f]">Terms</Link><Link to="/contact" className="hover:text-[#1f6e5f]">Contact</Link></div><p className="text-xs text-[#8aa092]">© {new Date().getFullYear()} Trash Control</p></div></footer>;
+export default Footer;
