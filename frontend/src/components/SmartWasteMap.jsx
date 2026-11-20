@@ -58,12 +58,67 @@ const CampaignIcon = L.divIcon({
   iconAnchor: [12, 12]
 });
 
-const AggregateHubIcon = L.divIcon({
-  className: 'hub-cluster-div-icon',
-  html: '<div style="background:#1f6e5f;color:white;width:34px;height:34px;border-radius:50%;border:2px solid white;box-shadow:0 4px 12px rgba(31,110,95,.35);display:flex;align-items:center;justify-content:center;font-size:17px;font-weight:800">&#9851;</div>',
-  iconSize: [34, 34],
-  iconAnchor: [17, 17]
-});
+// These are the same local demo campaigns shown by EventsHub when the database
+// has no campaigns yet. API campaigns always take precedence when available.
+const fallbackCleanupCampaigns = [
+  {
+    _id: 'e1',
+    title: 'Connaught Place Plastic Sweep',
+    description: 'Community cleanup around the central business district.',
+    location: { coordinates: [77.2167, 28.6304], address: 'Connaught Place, New Delhi' },
+    date: new Date(Date.now() + 86400000 * 2).toISOString(),
+    volunteers: []
+  },
+  {
+    _id: 'e2',
+    title: 'Juhu Beach Waste Watch',
+    description: 'Help prevent plastic and fishing debris from entering the Arabian Sea.',
+    location: { coordinates: [72.8260, 19.0987], address: 'Juhu Beach, Mumbai, Maharashtra' },
+    date: new Date(Date.now() + 86400000 * 5).toISOString(),
+    volunteers: ['u1', 'u2', 'u3']
+  },
+  {
+    _id: 'e3',
+    title: 'Cubbon Park Community Sweep',
+    description: 'A community cleanup focused on organic waste and public-bin awareness.',
+    location: { coordinates: [77.5880, 12.9763], address: 'Cubbon Park, Bengaluru, Karnataka' },
+    date: new Date(Date.now() + 86400000 * 7).toISOString(),
+    volunteers: ['u1']
+  },
+  {
+    _id: 'e4',
+    title: 'Marina Beach Shoreline Rescue',
+    description: 'Clear shoreline litter and sort recyclable material with local groups.',
+    location: { coordinates: [80.2785, 13.0475], address: 'Marina Beach, Chennai, Tamil Nadu' },
+    date: new Date(Date.now() + 86400000 * 12).toISOString(),
+    volunteers: ['u1', 'u2']
+  },
+  {
+    _id: 'e5',
+    title: 'Sabarmati Riverbank Cleanup',
+    description: 'Remove mixed waste near the riverfront and identify areas needing better segregation.',
+    location: { coordinates: [72.5714, 23.0258], address: 'Sabarmati Riverfront, Ahmedabad, Gujarat' },
+    date: new Date(Date.now() + 86400000 * 15).toISOString(),
+    volunteers: []
+  }
+];
+
+const getCampaignLatLng = (campaign) => {
+  const coordinates = campaign.location?.coordinates || campaign.coordinates;
+  if (Array.isArray(coordinates) && coordinates.length === 2) {
+    const longitude = Number(coordinates[0]);
+    const latitude = Number(coordinates[1]);
+    return Number.isFinite(latitude) && Number.isFinite(longitude) ? [latitude, longitude] : null;
+  }
+
+  if (campaign.latitude !== undefined && campaign.longitude !== undefined) {
+    const latitude = Number(campaign.latitude);
+    const longitude = Number(campaign.longitude);
+    return Number.isFinite(latitude) && Number.isFinite(longitude) ? [latitude, longitude] : null;
+  }
+
+  return null;
+};
 
 const getRouteStopIcon = (number, depot = false) => L.divIcon({
   className: 'route-stop-div-icon',
@@ -73,18 +128,8 @@ const getRouteStopIcon = (number, depot = false) => L.divIcon({
 });
 
 const DynamicHeatmapCircle = ({ hotspot, onSelect }) => {
-  const map = useMap();
-  const [zoom, setZoom] = useState(map.getZoom());
-
-  useEffect(() => {
-    const updateZoom = () => setZoom(map.getZoom());
-    map.on('zoomend', updateZoom);
-    return () => map.off('zoomend', updateZoom);
-  }, [map]);
-
   const density = Math.max(1, hotspot.incident_density || 1);
-  const zoomScale = 95000 / (2 ** Math.max(0, zoom - 5));
-  const radius = Math.min(140000, Math.max(650, zoomScale)) * (0.8 + Math.min(density, 10) * 0.12);
+  const radius = Math.max(1200, Math.min(12000, Number(hotspot.radius_km || 5) * 1000));
   const color = hotspot.risk_level === 'High' || hotspot.risk_level === 'Critical' ? '#c75c3b' : '#c99535';
 
   return (
@@ -104,46 +149,33 @@ const DynamicHeatmapCircle = ({ hotspot, onSelect }) => {
   );
 };
 
-// Recycling center icon (Green)
-const RecyclingIcon = L.divIcon({
+const getRecyclingIcon = (size) => L.divIcon({
   className: 'recycling-div-icon',
-  html: '<div style="background-color:#1f6e5f;color:white;width:25px;height:25px;border-radius:8px;border:2px solid white;box-shadow:0 4px 12px rgba(31,110,95,.35);display:flex;align-items:center;justify-content:center;font-size:15px;font-weight:800">&#9851;</div>',
-  iconSize: [25, 25],
-  iconAnchor: [12, 12]
+  html: `<div style="background-color:#1f6e5f;color:white;width:${size}px;height:${size}px;border-radius:8px;border:2px solid white;box-shadow:0 4px 12px rgba(31,110,95,.35);display:flex;align-items:center;justify-content:center;font-size:${Math.max(11, Math.round(size * 0.6))}px;font-weight:800">&#9851;</div>`,
+  iconSize: [size, size],
+  iconAnchor: [size / 2, size / 2]
 });
 
 const HubLayer = ({ centers, visible }) => {
   const map = useMap();
-  const [zoom, setZoom] = useState(map.getZoom());
+  const [viewport, setViewport] = useState({ zoom: map.getZoom(), bounds: map.getBounds() });
 
   useEffect(() => {
-    const updateZoom = () => setZoom(map.getZoom());
-    map.on('zoomend', updateZoom);
-    map.on('moveend', updateZoom);
+    const updateViewport = () => setViewport({ zoom: map.getZoom(), bounds: map.getBounds() });
+    map.on('zoomend', updateViewport);
+    map.on('moveend', updateViewport);
     return () => {
-      map.off('zoomend', updateZoom);
-      map.off('moveend', updateZoom);
+      map.off('zoomend', updateViewport);
+      map.off('moveend', updateViewport);
     };
   }, [map]);
 
   if (!visible) return null;
-  const inViewport = centers.filter((center) => map.getBounds().contains(center.coords));
-
-  if (zoom < 8) {
-    return inViewport.length > 0 ? (
-      <Marker position={map.getCenter()} icon={AggregateHubIcon}>
-        <Popup>
-          <div className="text-xs text-[#24483b]">
-            <strong className="block text-[10px] uppercase tracking-wide text-[#1f6e5f]">Collection hubs</strong>
-            <span>{inViewport.length} service hubs in this map area. Zoom in to inspect individual facilities.</span>
-          </div>
-        </Popup>
-      </Marker>
-    ) : null;
-  }
+  const inViewport = centers.filter((center) => viewport.bounds.contains(center.coords));
+  const markerSize = viewport.zoom < 6 ? 18 : viewport.zoom < 9 ? 22 : viewport.zoom < 12 ? 26 : 30;
 
   return inViewport.map((center) => (
-    <Marker key={center.id} position={center.coords} icon={RecyclingIcon}>
+    <Marker key={center.id} position={center.coords} icon={getRecyclingIcon(markerSize)}>
       <Popup>
         <div className="text-xs text-[#24483b]">
           <strong className="block text-[10px] uppercase tracking-wide text-[#1f6e5f]">Collection service hub</strong>
@@ -212,13 +244,15 @@ const SmartWasteMap = ({ reports = EMPTY_REPORTS, selectMode = false, onMapClick
   const [routeError, setRouteError] = useState('');
   const [aiHotspots, setAiHotspots] = useState([]);
   const [hotspotError, setHotspotError] = useState('');
+  const [hotspotLoading, setHotspotLoading] = useState(false);
   const [campaigns, setCampaigns] = useState([]);
-  const [showCampaigns, setShowCampaigns] = useState(!adminMode);
+  const [showCampaigns, setShowCampaigns] = useState(true);
   const [selectedReport, setSelectedReport] = useState(null);
   const [priorityAssessment, setPriorityAssessment] = useState(null);
   const [assessmentLoading, setAssessmentLoading] = useState(false);
   const [selectedHotspot, setSelectedHotspot] = useState(null);
   const [riskAssessment, setRiskAssessment] = useState(null);
+  const [riskLoading, setRiskLoading] = useState(false);
   const [populationDensity, setPopulationDensity] = useState('');
   const [selectingRegion, setSelectingRegion] = useState(false);
   const [regionCenter, setRegionCenter] = useState(null);
@@ -235,10 +269,13 @@ const SmartWasteMap = ({ reports = EMPTY_REPORTS, selectMode = false, onMapClick
     let cancelled = false;
     getCleanupEvents()
       .then((data) => {
-        if (!cancelled) setCampaigns(data.success ? data.data : []);
+        if (!cancelled) {
+          const apiCampaigns = data?.success && Array.isArray(data.data) ? data.data : [];
+          setCampaigns(apiCampaigns.length > 0 ? apiCampaigns : fallbackCleanupCampaigns);
+        }
       })
       .catch(() => {
-        if (!cancelled) setCampaigns([]);
+        if (!cancelled) setCampaigns(fallbackCleanupCampaigns);
       });
     return () => { cancelled = true; };
   }, [selectMode]);
@@ -310,6 +347,20 @@ const SmartWasteMap = ({ reports = EMPTY_REPORTS, selectMode = false, onMapClick
     { id: 'rc11', name: 'Lucknow Municipal Eco Depot', coords: [26.8467, 80.9462], address: 'Gomti Nagar, Lucknow' },
   ];
 
+  const fleetStops = Object.values(reports.reduce((groups, report) => {
+    const coords = report.location?.coordinates;
+    if (!coords || coords.length !== 2) return groups;
+    const locality = getLocality(report);
+    if (!groups[locality]) groups[locality] = { locality, reports: [], latTotal: 0, lngTotal: 0 };
+    groups[locality].reports.push(report);
+    groups[locality].latTotal += coords[1];
+    groups[locality].lngTotal += coords[0];
+    return groups;
+  }, {})).map((group) => ({
+    ...group,
+    coords: [group.latTotal / group.reports.length, group.lngTotal / group.reports.length]
+  }));
+
   const handleGpsDetect = async () => {
     try {
       const location = await getCurrentLocation();
@@ -350,11 +401,16 @@ const SmartWasteMap = ({ reports = EMPTY_REPORTS, selectMode = false, onMapClick
   };
 
   const handleRiskAssessment = async () => {
-    if (!regionCenter || !regionRadiusKm || !populationDensity) return;
+    if (!regionCenter || !regionRadiusKm || !populationDensity) {
+      setRiskAssessment({ error: 'Select an area and enter population density first.' });
+      return;
+    }
     const areaReports = reports.filter((report) => {
       const [lng, lat] = report.location?.coordinates || [];
       return Number.isFinite(lat) && distanceKm(regionCenter, [lat, lng]) <= regionRadiusKm;
     });
+    setRiskLoading(true);
+    setRiskAssessment(null);
     try {
       const result = await predictWasteRisk({
         latitude: regionCenter[0],
@@ -366,6 +422,8 @@ const SmartWasteMap = ({ reports = EMPTY_REPORTS, selectMode = false, onMapClick
       setRiskAssessment(result);
     } catch (error) {
       setRiskAssessment({ error: error.response?.data?.message || 'Risk assessment service unavailable.' });
+    } finally {
+      setRiskLoading(false);
     }
   };
 
@@ -392,7 +450,7 @@ const SmartWasteMap = ({ reports = EMPTY_REPORTS, selectMode = false, onMapClick
 
     const grid = {};
     const singles = [];
-    const threshold = 0.015; // Grid distance threshold
+    const threshold = mapZoom < 8 ? 1.5 : mapZoom < 11 ? 0.15 : 0.015;
 
     reports.forEach((report) => {
       const coords = report.location?.coordinates;
@@ -445,7 +503,7 @@ const SmartWasteMap = ({ reports = EMPTY_REPORTS, selectMode = false, onMapClick
     }
 
     const activeReports = reports.filter((report) =>
-      report.status === 'approved' &&
+      (report.status === 'approved' || report.status === 'pending') &&
       report.location?.coordinates?.length === 2
     );
 
@@ -506,9 +564,11 @@ const SmartWasteMap = ({ reports = EMPTY_REPORTS, selectMode = false, onMapClick
       const [lng, lat] = report.location.coordinates;
       return [lat, lng];
     });
-    const start = center && zoom >= 10 && distanceSquared(focusedGroup.centroid, center) < 4
+    // Use the selected operating region as the depot so the first cleanup
+    // report is not accidentally discarded as the route start.
+    const start = regionCenter || (center && zoom >= 10 && distanceSquared(focusedGroup.centroid, center) < 4
       ? center
-      : points[0];
+      : focusedGroup.centroid);
 
     let cancelled = false;
     setRouteLoading(true);
@@ -536,10 +596,12 @@ const SmartWasteMap = ({ reports = EMPTY_REPORTS, selectMode = false, onMapClick
     if (!showHeatmap || selectMode || reports.length === 0) {
       setAiHotspots([]);
       setHotspotError('');
+      setHotspotLoading(false);
       return undefined;
     }
 
     let cancelled = false;
+    setHotspotLoading(true);
     getAiHotspots(reports)
       .then((data) => {
         if (!cancelled) {
@@ -552,6 +614,9 @@ const SmartWasteMap = ({ reports = EMPTY_REPORTS, selectMode = false, onMapClick
           setAiHotspots([]);
           setHotspotError(error.response?.data?.message || 'Waste density analysis is unavailable.');
         }
+      })
+      .finally(() => {
+        if (!cancelled) setHotspotLoading(false);
       });
 
     return () => { cancelled = true; };
@@ -584,6 +649,10 @@ const SmartWasteMap = ({ reports = EMPTY_REPORTS, selectMode = false, onMapClick
     if (showRoute) {
       setShowRoute(false);
       setSelectingRegion(false);
+      setRegionCenter(null);
+      setRegionRadiusKm(null);
+      setRouteError('');
+      setShowRouteStops(false);
       return;
     }
     setShowRoute(true);
@@ -723,31 +792,37 @@ const SmartWasteMap = ({ reports = EMPTY_REPORTS, selectMode = false, onMapClick
 
         <FlyToUser coords={gpsCoords || center} zoom={gpsCoords ? 14 : zoom} />
 
-        {/* Live Tracking Cleaning Truck */}
-        {showTruck && truckCoords && (
-          <Marker position={truckCoords} icon={truckIcon}>
+        {/* Report-derived municipal fleet coverage */}
+        {showTruck && fleetStops.map((fleet, index) => (
+          <Marker key={`fleet-${fleet.locality}`} position={fleet.coords} icon={truckIcon}>
             <Popup>
-              <div className="text-xs p-1">
-                <span className="font-extrabold text-neon-blue uppercase text-[9px] block mb-1">Live Tracking</span>
-                <p className="font-bold text-[#24483b]">Smart Clean Truck #08</p>
-                <p className="text-[10px] text-[#71887a]">En route to reported waste heap...</p>
+              <div className="text-xs p-1 text-[#24483b]">
+                <span className="font-extrabold text-neon-blue uppercase text-[9px] block mb-1">Municipal fleet coverage</span>
+                <p className="font-bold capitalize">{fleet.locality} response truck {index + 1}</p>
+                <p className="text-[10px] text-[#71887a]">Coverage based on {fleet.reports.length} mapped reports in this locality.</p>
               </div>
             </Popup>
+          </Marker>
+        ))}
+
+        {showTruck && truckCoords && fleetStops.length === 0 && (
+          <Marker position={truckCoords} icon={truckIcon}>
+            <Popup><span className="text-xs text-[#24483b]">Municipal response truck</span></Popup>
           </Marker>
         )}
 
         {!selectMode && <HubLayer centers={recyclingCenters} visible={showRecycling} />}
 
         {!selectMode && showCampaigns && campaigns.map((campaign) => {
-          const coords = campaign.location?.coordinates;
-          if (!coords || coords.length !== 2) return null;
+          const coords = getCampaignLatLng(campaign);
+          if (!coords) return null;
           return (
-            <Marker key={campaign._id} position={[coords[1], coords[0]]} icon={CampaignIcon}>
+            <Marker key={campaign._id} position={coords} icon={CampaignIcon}>
               <Popup>
                 <div className="min-w-[180px] text-xs text-[#24483b]">
                   <strong className="block text-[10px] uppercase tracking-wide text-[#4d9b68]">Cleanup campaign</strong>
                   <h4 className="mb-1 font-bold">{campaign.title}</h4>
-                  <p className="text-[10px] text-[#71887a]">{campaign.location?.address}</p>
+                  <p className="text-[10px] text-[#71887a]">{campaign.location?.address || campaign.address}</p>
                   <p className="mt-1 text-[10px] text-[#5d7568]">{new Date(campaign.date).toLocaleString()}</p>
                   <p className="mt-1 text-[10px] text-[#5d7568]">{campaign.volunteers?.length || 0} volunteers</p>
                   <a href="/events" className="mt-2 inline-flex items-center gap-1 font-bold text-[#1f6e5f]">View campaign <Users className="h-3 w-3" /></a>
@@ -767,7 +842,7 @@ const SmartWasteMap = ({ reports = EMPTY_REPORTS, selectMode = false, onMapClick
         )}
 
         {/* Standard Single Markers Layer */}
-        {!selectMode && !showHeatmap && singles.map((report) => {
+        {!selectMode && !showClusters && singles.map((report) => {
           const coords = report.location?.coordinates;
           if (!coords || coords.length !== 2) return null;
           return (
@@ -877,13 +952,41 @@ const SmartWasteMap = ({ reports = EMPTY_REPORTS, selectMode = false, onMapClick
         </div>
       )}
 
+      {adminMode && showHeatmap && hotspotLoading && (
+        <div className="absolute left-4 top-4 z-[500] mt-[220px] max-w-[270px] rounded-xl border border-[#d4e1d4] bg-white/96 p-4 text-left shadow-lg backdrop-blur">
+          <div className="flex items-center gap-2 text-xs font-extrabold uppercase tracking-wide text-[#1f6e5f]"><Layers className="h-3.5 w-3.5 animate-pulse" /> Waste density analysis</div>
+          <p className="mt-1 text-xs text-[#5d7568]">Analyzing report density for the current map.</p>
+        </div>
+      )}
+
+      {adminMode && showHeatmap && !hotspotLoading && !hotspotError && aiHotspots.length === 0 && (
+        <div className="absolute left-4 top-4 z-[500] mt-[220px] max-w-[270px] rounded-xl border border-[#d4e1d4] bg-white/96 p-4 text-left shadow-lg backdrop-blur">
+          <div className="flex items-center gap-2 text-xs font-extrabold uppercase tracking-wide text-[#1f6e5f]"><Layers className="h-3.5 w-3.5" /> Waste density analysis</div>
+          <p className="mt-1 text-xs text-[#5d7568]">No dense report cells were returned for the current map data.</p>
+        </div>
+      )}
+
+      {adminMode && showClusters && clusters.length === 0 && (
+        <div className="absolute left-4 top-4 z-[500] mt-[220px] max-w-[270px] rounded-xl border border-[#d4e1d4] bg-white/96 p-4 text-left shadow-lg backdrop-blur">
+          <div className="flex items-center gap-2 text-xs font-extrabold uppercase tracking-wide text-[#1f6e5f]"><MapPin className="h-3.5 w-3.5" /> Report clusters</div>
+          <p className="mt-1 text-xs text-[#5d7568]">No nearby report groups were found at this zoom level.</p>
+        </div>
+      )}
+
+      {adminMode && showClusters && clusters.length > 0 && (
+        <div className="absolute left-4 top-4 z-[500] mt-[220px] max-w-[270px] rounded-xl border border-[#d4e1d4] bg-white/96 p-4 text-left shadow-lg backdrop-blur">
+          <div className="flex items-center gap-2 text-xs font-extrabold uppercase tracking-wide text-[#1f6e5f]"><MapPin className="h-3.5 w-3.5" /> Report clusters</div>
+          <p className="mt-1 text-xs text-[#5d7568]">{clusters.length} nearby report groups are shown. Zoom in to separate individual reports.</p>
+        </div>
+      )}
+
       {adminMode && riskSelecting && (
         <div className="absolute bottom-4 left-4 z-[500] max-w-[290px] rounded-xl border border-[#b7d5bd] bg-white/96 p-4 text-left shadow-lg backdrop-blur">
           <div className="flex items-center gap-2 text-xs font-extrabold uppercase tracking-wide text-[#1f6e5f]"><TriangleAlert className="h-3.5 w-3.5" /> Area risk assessment</div>
           {!regionRadiusKm ? <p className="mt-1 text-xs text-[#5d7568]">Click a centre and boundary on the map to define the area.</p> : <>
             <label className="mt-3 block text-[10px] font-bold uppercase tracking-wide text-[#71887a]">Population density</label>
             <input type="number" min="0" value={populationDensity} onChange={(event) => setPopulationDensity(event.target.value)} placeholder="Required input" className="mt-1 w-full rounded-lg border border-[#d4e1d4] bg-[#f8faf7] px-3 py-2 text-xs text-[#24483b]" />
-            <button onClick={handleRiskAssessment} disabled={!populationDensity} className="mt-2 w-full rounded-lg bg-[#1f6e5f] px-3 py-2 text-xs font-bold text-white disabled:opacity-50">Assess selected area</button>
+            <button onClick={handleRiskAssessment} disabled={!populationDensity || riskLoading} className="mt-2 w-full rounded-lg bg-[#1f6e5f] px-3 py-2 text-xs font-bold text-white disabled:opacity-50">{riskLoading ? 'Assessing area...' : 'Assess selected area'}</button>
           </>}
           {riskAssessment && !riskAssessment.error && <div className="mt-3 border-t border-[#e1e9df] pt-3 text-xs text-[#35594c]"><p className="font-bold text-[#173d32]">{riskAssessment.predicted_waste_volume_tons} tons predicted</p><p className="mt-1 font-extrabold uppercase text-[#a04d32]">{riskAssessment.predicted_risk_level} risk</p><p className="mt-1 text-[10px] text-[#71887a]">Engine: {riskAssessment.engine}</p></div>}
           {riskAssessment?.error && <p className="mt-2 text-xs text-[#a04d32]">{riskAssessment.error}</p>}

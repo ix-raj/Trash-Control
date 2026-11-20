@@ -67,6 +67,7 @@ def route_optimize():
         points = data.get('points', []) # Expects list of [latitude, longitude]
         start_point = data.get('start', [20.5937, 78.9629]) # India overview start
         region = data.get('region') or {}
+        include_start_stop = bool(data.get('include_start_stop', False))
 
         if not points:
             return jsonify({"success": True, "optimized_route": [], "total_distance_km": 0, "fuel_saved_liters": 0})
@@ -97,7 +98,7 @@ def route_optimize():
 
         # Nearest neighbor shortest path route solver
         unvisited = list(points)
-        if unvisited and np.allclose(unvisited[0], start_point, atol=1e-6):
+        if not include_start_stop and unvisited and np.allclose(unvisited[0], start_point, atol=1e-6):
             unvisited.pop(0)
         current = start_point
         route = [start_point]
@@ -154,19 +155,27 @@ def hotspots():
         if not reports:
             return jsonify({"success": True, "hotspots": []})
 
+        # Group reports into practical city/neighborhood cells. A 0.1 degree
+        # cell is intentionally used here because the input reports are often
+        # spread across several streets while still belonging to one city.
+        grid_size = 0.1
         grid_counts = {}
         for r in reports:
             coords = r.get('location', {}).get('coordinates', [])
             if len(coords) == 2:
-                lat = round(coords[1], 3)
-                lng = round(coords[0], 3)
-                key = f"{lat},{lng}"
-                grid_counts[key] = grid_counts.get(key, 0) + 1
+                lat = float(coords[1])
+                lng = float(coords[0])
+                grid_lat = round(lat / grid_size) * grid_size
+                grid_lng = round(lng / grid_size) * grid_size
+                key = f"{grid_lat},{grid_lng}"
+                grid_counts.setdefault(key, []).append((lat, lng))
 
         hotspot_list = []
-        for key, count in grid_counts.items():
+        for key, points in grid_counts.items():
+            count = len(points)
             if count >= 2:
-                lat, lng = map(float, key.split(','))
+                lat = sum(point[0] for point in points) / count
+                lng = sum(point[1] for point in points) / count
                 
                 # Predict risk levels for hotspots based on historical counts
                 risk = "Low"
@@ -181,7 +190,8 @@ def hotspots():
                     "latitude": lat,
                     "longitude": lng,
                     "incident_density": count,
-                    "risk_level": risk
+                    "risk_level": risk,
+                    "radius_km": round(max(2.0, min(8.0, 2.0 + count * 0.8)), 2)
                 })
 
         hotspot_list.sort(key=lambda x: x['incident_density'], reverse=True)

@@ -16,12 +16,12 @@ const callAiService = async (path, payload) => {
 
 const optimizeRoute = async (req, res) => {
   try {
-    const { points = [], start, region } = req.body || {};
+    const { points = [], start, region, include_start_stop = false } = req.body || {};
     if (!Array.isArray(points) || points.some((point) => !Array.isArray(point) || point.length !== 2)) {
       return res.status(400).json({ success: false, message: 'points must be an array of [latitude, longitude] pairs' });
     }
 
-    const data = await callAiService('/route-optimize', { points, start, region });
+    const data = await callAiService('/route-optimize', { points, start, region, include_start_stop });
     res.json(data);
   } catch (error) {
     res.status(502).json({ success: false, message: `AI service unavailable: ${error.message}` });

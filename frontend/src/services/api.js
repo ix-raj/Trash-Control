@@ -141,7 +141,7 @@ export const deleteCleanupCampaign = async (id) => {
 };
 
 export const optimizeWasteRoute = async (points, start, region) => {
-  const res = await api.post('/ai/route-optimize', { points, start, region });
+  const res = await api.post('/ai/route-optimize', { points, start, region, include_start_stop: true });
   return res.data;
 };
 
