@@ -58,7 +58,6 @@ const UserSchema = new mongoose.Schema({
 });
 
 // Indexes for faster logins and scoreboard query optimizations
-UserSchema.index({ email: 1 });
 UserSchema.index({ impactScore: -1 });
 UserSchema.index({ dailyScore: -1 });
 UserSchema.index({ weeklyScore: -1 });
