@@ -9,7 +9,7 @@ export const SocketProvider = ({ children }) => {
   const [notifications, setNotifications] = useState([]);
   const { user } = useContext(AuthContext);
 
-  const SOCKET_URL = import.meta.env.VITE_SOCKET_URL || 'http://localhost:3000';
+  const SOCKET_URL = import.meta.env.VITE_SOCKET_URL || 'https://trash-control-backend.onrender.com';
 
   useEffect(() => {
     let socketInstance;

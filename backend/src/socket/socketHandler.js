@@ -1,10 +1,13 @@
 let io;
 
-const initSocket = (server) => {
+const initSocket = (server, allowedOrigins = ['https://trash-control.vercel.app']) => {
   const { Server } = require('socket.io');
   io = new Server(server, {
     cors: {
-      origin: '*',
+      origin: (origin, callback) => {
+        if (!origin || allowedOrigins.includes(origin)) return callback(null, true);
+        return callback(new Error('Origin is not allowed by Socket.IO CORS'));
+      },
       methods: ['GET', 'POST', 'PUT', 'DELETE'],
     },
   });

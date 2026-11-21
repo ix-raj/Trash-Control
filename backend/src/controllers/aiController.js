@@ -1,4 +1,4 @@
-const AI_SERVICE_URL = (process.env.AI_SERVICE_URL || 'http://localhost:5000').replace(/\/$/, '');
+const AI_SERVICE_URL = (process.env.AI_SERVICE_URL || 'https://trash-control-ai-services.onrender.com').replace(/\/$/, '');
 
 const callAiService = async (path, payload) => {
   const response = await fetch(`${AI_SERVICE_URL}${path}`, {

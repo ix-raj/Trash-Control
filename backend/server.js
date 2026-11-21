@@ -19,15 +19,24 @@ const aiRoutes = require('./src/routes/aiRoutes');
 const app = express();
 const server = http.createServer(app);
 const PORT = process.env.PORT || 3000;
+const allowedOrigins = (process.env.FRONTEND_URL || 'https://trash-control.vercel.app')
+    .split(',')
+    .map((origin) => origin.trim())
+    .filter(Boolean);
 
 // Connect to MongoDB Atlas
 connectDB();
 
 // Initialize Socket.io
-initSocket(server);
+initSocket(server, allowedOrigins);
 
 // Middleware
-app.use(cors());
+app.use(cors({
+    origin: (origin, callback) => {
+        if (!origin || allowedOrigins.includes(origin)) return callback(null, true);
+        return callback(new Error('Origin is not allowed by CORS'));
+    }
+}));
 app.use(express.json({ limit: '50mb' }));
 
 // Logging Middleware
